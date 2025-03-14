@@ -58,7 +58,7 @@ app.post('/execute-function', async (req, res) => {
 
     try {
         // Call the function
-        const result = await functions[functionName].execute(parameters);
+        const result = await functions[functionName].execute(...Object.values(parameters));
         console.log(`result: ${JSON.stringify(result)}`);
         res.json(result);
     } catch (err) {

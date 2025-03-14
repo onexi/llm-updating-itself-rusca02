@@ -2,3 +2,8 @@ favorite_food, John likes ice cream
 john_married, John is married to Rita.
 John, all entries related to John
 entity, John like cars
+greeting, hi John
+number1, 1
+multiply, 2 * 2
+substract, 2 - 1
+divideNumbers, const divideNumbers = () => 4 / 2;

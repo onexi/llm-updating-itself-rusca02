@@ -99,17 +99,17 @@ app.post('/api/openai-call', async (req, res) => {
         });
        
        // Extract the arguments for get_delivery_date
-// Note this code assumes we have already determined that the model generated a function call. See below for a more production ready example that shows how to check if the model generated a function call
+        // Note this code assumes we have already determined that the model generated a function call. See below for a more production ready example that shows how to check if the model generated a function call
         const toolCall = response.choices[0].message.tool_calls[0];
 
-// Extract the arguments for get_delivery_date
-// Note this code assumes we have already determined that the model generated a function call. 
+        // Extract the arguments for get_delivery_date
+        // Note this code assumes we have already determined that the model generated a function call. 
         if (toolCall) {
             const functionName = toolCall.function.name;
             const parameters = JSON.parse(toolCall.function.arguments);
 
             const result = await functions[functionName].execute(...Object.values(parameters));
-// note that we need to respond with the function call result to the model quoting the tool_call_id
+            // note that we need to respond with the function call result to the model quoting the tool_call_id
             const function_call_result_message = {
                 role: "tool",
                 content: JSON.stringify({
