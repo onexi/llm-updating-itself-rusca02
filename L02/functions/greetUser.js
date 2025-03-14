@@ -1,4 +1,4 @@
-const execute = async (name) => {
+const execute = async ( name ) => {
     return { greeting: `Hello, ${name}!` };
 };
 
@@ -21,3 +21,4 @@ const details = {
 };
 
 export { execute, details };
+
