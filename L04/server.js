@@ -7,7 +7,6 @@ import fs from "fs";
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Initialize Express server
 const app = express();
 app.use(bodyParser.json());
 
@@ -16,7 +15,7 @@ const __dirname = path.dirname(__filename);
 
 app.use(express.static(path.resolve(process.cwd(), './public')));
 
-// OpenAI API configuration
+// ✅ OpenAI API configuration
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
@@ -36,9 +35,9 @@ let state = {
     parameters: []
 };
 
-// Function to load all available tools (functions)
+// ✅ Load available function tools
 async function getFunctions() {
-    const files = fs.readdirSync(path.resolve(process.cwd(), "./functions"));
+    const files = fs.readdirSync(path.resolve(__dirname, "./functions"));
     const openAIFunctions = {};
 
     for (const file of files) {
@@ -47,39 +46,17 @@ async function getFunctions() {
             const modulePath = `./functions/${moduleName}.js`;
             const { details, execute } = await import(modulePath);
 
-            openAIFunctions[moduleName] = {
-                "details": details,
-                "execute": execute
-            };
+            openAIFunctions[moduleName] = { details, execute };
         }
     }
     return openAIFunctions;
 }
 
-// Route to execute a function
-app.post('/api/execute-function', async (req, res) => {
-    const { functionName, parameters } = req.body;
-
-    const functions = await getFunctions();
-
-    if (!functions[functionName]) {
-        return res.status(404).json({ error: 'Function not found' });
-    }
-
-    try {
-        const result = await functions[functionName].execute(...Object.values(parameters));
-        console.log(`result: ${JSON.stringify(result)}`);
-        res.json(result);
-    } catch (err) {
-        res.status(500).json({ error: 'Function execution failed', details: err.message });
-    }
-});
-
-// 🔴 NEW CODE - Utility function to save generated functions
+// ✅ Save function if GPT generates a valid tool
 function saveFunctionToFile(gptMessage) {
     const match = gptMessage.match(/const execute = async[^`]+export { execute, details }/s);
     if (!match) {
-        console.log("❌ No valid function detected in GPT response.");
+        console.log("❌ No valid function detected.");
         return;
     }
 
@@ -92,16 +69,18 @@ function saveFunctionToFile(gptMessage) {
     console.log(`✅ Function saved: ${filePath}`);
 }
 
-// 🔴 NEW CODE - Updated GPT API Call with Function Generation Logic
+// ✅ OpenAI Call with Function Handling
 app.post('/api/openai-call', async (req, res) => {
     const { user_message } = req.body;
 
+    console.log(`📨 User Message: ${user_message}`);
+
     const functions = await getFunctions();
     const availableFunctions = Object.values(functions).map(fn => fn.details);
-    console.log(`Available Functions: ${JSON.stringify(availableFunctions)}`);
+    console.log(`🔎 Available Functions: ${JSON.stringify(availableFunctions)}`);
 
     let messages = [
-        { role: 'system', content: 'You are a helpful assistant. If the user requests a function that does not exist, generate a JavaScript function using the OpenAI tool schema. DO NOT explain the code, just return the function in a valid JavaScript module format.' },
+        { role: 'system', content: 'You are a helpful assistant. If a requested function is missing, generate a JavaScript function using the OpenAI tool schema. DO NOT explain the code, just return the function in a valid JavaScript module format.' },
         { role: 'user', content: user_message }
     ];
 
@@ -110,14 +89,13 @@ app.post('/api/openai-call', async (req, res) => {
         if (availableFunctions.length > 0) {
             response = await openai.chat.completions.create({
                 model: 'gpt-4o',
-                messages: messages,
+                messages,
                 tools: availableFunctions
             });
         } else {
-            messages.push({ role: 'system', content: 'Ensure your response includes a JavaScript function following the OpenAI tool schema.' });
             response = await openai.chat.completions.create({
                 model: 'gpt-4o',
-                messages: messages
+                messages
             });
         }
 
@@ -129,51 +107,40 @@ app.post('/api/openai-call', async (req, res) => {
             const functionName = toolCall.function.name;
             const parameters = JSON.parse(toolCall.function.arguments);
 
-            const result = await functions[functionName].execute(...Object.values(parameters));
-            const function_call_result_message = {
-                role: "tool",
-                content: JSON.stringify({ result }),
-                tool_call_id: toolCall.id
-            };
-
-            messages.push(response.choices[0].message);
-            messages.push(function_call_result_message);
-
-            const final_response = await openai.chat.completions.create({
-                model: "gpt-4o",
-                messages: messages,
-            });
-
-            let output = final_response.choices[0]?.message?.content || "No content returned.";
-            res.json({ message: output, state: state });
+            if (functions[functionName]) {
+                const result = await functions[functionName].execute(...Object.values(parameters));
+                res.json({ message: JSON.stringify(result) });
+            } else {
+                res.json({ message: `⚠️ Function ${functionName} not found.` });
+            }
         } else {
             const gptMessage = response.choices[0].message.content;
             if (gptMessage.includes("export { execute, details }")) {
                 saveFunctionToFile(gptMessage);
-                res.json({ message: "Function created and saved!", state: state });
+                res.json({ message: "✅ Function created and saved!" });
             } else {
                 res.json({ message: gptMessage });
             }
         }
-
     } catch (error) {
+        console.error("❌ OpenAI API Error:", error);
         res.status(500).json({ error: 'OpenAI API failed', details: error.message });
     }
 });
 
-// Route to handle user input
+// ✅ Handle user input for prompt
 app.post('/api/prompt', async (req, res) => {
     state = req.body;
     try {
-        res.status(200).json({ message: `Got prompt: ${state.user_message}`, state: state });
+        res.status(200).json({ message: `📝 Prompt Received: ${state.user_message}` });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: 'User Message Failed', state: state });
+        console.error("❌ Prompt Processing Failed:", error);
+        res.status(500).json({ message: 'User Message Failed' });
     }
 });
 
-// Start the server
-const PORT = 3000;
+// ✅ Start the server
+const PORT = 3001;
 app.listen(PORT, () => {
-    console.log(`✅ Server running at http://localhost:${PORT}`);
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
